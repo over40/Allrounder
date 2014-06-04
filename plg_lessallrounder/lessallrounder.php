@@ -13,20 +13,12 @@ defined('_JEXEC') or die();
 
 /**
  * Plugin compiles .less files on template style save.
- * Less compiler lessphp; see http://leafo.net/lessphp/
+ * JLess compiler uses lessphp; see http://leafo.net/lessphp/
  *
  * @since  1.0
  */
 class PlgSystemLessallrounder extends JPlugin
 {
-	/**
-	 * Application object.
-	 *
-	 * @var    JApplicationCms
-	 * @since  2.1
-	 */
-	protected $app;
-
 	/**
 	 * Compile .less files on template style change
 	 *
@@ -48,7 +40,7 @@ class PlgSystemLessallrounder extends JPlugin
 		// Convert the params to an object.
 		if (is_string($table->params))
 		{
-			$registry = new \Joomla\Registry\Registry;
+			$registry = new JRegistry;
 			$registry->loadString($table->params);
 			$table->params = $registry;
 		}
@@ -59,6 +51,9 @@ class PlgSystemLessallrounder extends JPlugin
 			return;
 		}
 
+		// Joomla doesn't autoload JFile
+		JLoader::register('JFile', JPATH_LIBRARIES . '/joomla/filesystem/file.php');
+
 		// Path to less file
 		$client       = ($table->client_id) ? JPATH_ADMINISTRATOR : JPATH_SITE;
 		$templatePath = $client . '/templates/' . $table->template;
@@ -68,8 +63,7 @@ class PlgSystemLessallrounder extends JPlugin
 		// Check if .less file exists and is readable
 		if (is_readable($lessFile))
 		{
-			require_once 'lessc.inc.php';
-			$less = new lessc;
+			$less = new JLess;
 
 			if ($table->params->get('cssCompress', 0))
 			{
@@ -95,13 +89,13 @@ class PlgSystemLessallrounder extends JPlugin
 				unset($params_array['customCssCode']);
 			}
 
-			// Sanitising params for LESS
+			// Sanityzing params for LESS
 			foreach ($params_array as &$value)
 			{
 				// Trim whitespaces
 				$value = trim($value);
 
-				// Adding quotes around variable so it's threaten as string if a slash is in it.
+				// Adding quotes around variable so it's threated as string if a slash is in it.
 				if (strpos($value, '/') !== false)
 				{
 					$value = '"' . $value . '"';
@@ -114,24 +108,24 @@ class PlgSystemLessallrounder extends JPlugin
 				}
 			}
 
-			// Adding template path to params
+			// Adding templatepath to params
 			$basePath                 = ($table->client_id) ? JURI::base(true) : JURI::root(true);
 			$params_array['basePath'] = '"' . $basePath . '/"';
 
 			$less->setVariables($params_array);
 
 			$less->setImportDir(array($templatePath . '/less/'));
-			$lessString = file_get_contents($lessFile);
+			$lessString = JFile::read($lessFile);
 
 			// Check for custom files
 			if (is_readable($templatePath . '/less/custom.less'))
 			{
-				$lessString .= file_get_contents($templatePath . '/less/custom.less');
+				$lessString .= JFile::read($templatePath . '/less/custom.less');
 			}
 
 			if (is_readable($templatePath . '/css/custom.css'))
 			{
-				$lessString .= file_get_contents($templatePath . '/css/custom.css');
+				$lessString .= JFile::read($templatePath . '/css/custom.css');
 			}
 
 			try
@@ -140,13 +134,13 @@ class PlgSystemLessallrounder extends JPlugin
 			}
 			catch (Exception $e)
 			{
-				$this->app->enqueueMessage('lessphp error: ' . $e->getMessage(), 'warning');
+				JError::raiseWarning(100, 'lessphp error: ' . $e->getMessage());
 			}
 
 			JFile::write($cssFile, $cssString);
 
 			$this->loadLanguage();
-			$this->app->enqueueMessage(JText::sprintf('PLG_SYSTEM_LESSALLROUNDER_SUCCESS', $cssFile), 'message');
+			JFactory::getApplication()->enqueueMessage(JText::sprintf('PLG_SYSTEM_LESSALLROUNDER_SUCCESS', $cssFile), 'message');
 		}
 	}
 }
